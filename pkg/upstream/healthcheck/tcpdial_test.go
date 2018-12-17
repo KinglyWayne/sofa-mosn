@@ -18,28 +18,24 @@
 package healthcheck
 
 import (
-	"github.com/alipay/sofa-mosn/pkg/api/v2"
-	"github.com/alipay/sofa-mosn/pkg/types"
+	"net/http/httptest"
+	"strings"
+	"testing"
 )
 
-var sessionFactories map[types.Protocol]types.HealthCheckSessionFactory
-
-func init() {
-	sessionFactories = make(map[types.Protocol]types.HealthCheckSessionFactory)
-}
-
-func RegisterSessionFactory(p types.Protocol, f types.HealthCheckSessionFactory) {
-	sessionFactories[p] = f
-}
-
-// CreateHealthCheck is a extendable function that can create different health checker
-// by different health check session.
-// The Default session is TCPDial session
-func CreateHealthCheck(cfg v2.HealthCheck, cluster types.Cluster) types.HealthChecker {
-	f, ok := sessionFactories[types.Protocol(cfg.Protocol)]
-	if !ok {
-		// not registered, use default session factory
-		f = &TCPDialSessionFactory{}
+func TestTCPDial(t *testing.T) {
+	s := httptest.NewServer(nil)
+	addr := strings.Split(s.URL, "http://")[1]
+	host := &mockHost{
+		addr: addr,
 	}
-	return newHealthChecker(cfg, cluster, f)
+	dialfactory := &TCPDialSessionFactory{}
+	session := dialfactory.NewSession(nil, host)
+	if !session.CheckHealth() {
+		t.Error("tcp dial check health failed")
+	}
+	s.Close()
+	if session.CheckHealth() {
+		t.Error("tcp dial a closed server, but returns ok")
+	}
 }
